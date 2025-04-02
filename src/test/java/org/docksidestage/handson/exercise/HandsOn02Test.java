@@ -22,6 +22,7 @@ public class HandsOn02Test extends UnitContainerTestCase {
      */
     public void test_existsTestData() {
         int memberCount = memberBhv.selectCount(cb -> {
+            // TODO shiny selectCount()にorder byは意味がないのでなくてOK (要件にもない) by jflute (2025/04/02)
             cb.query().addOrderBy_MemberId_Desc();
         });
 
@@ -39,20 +40,31 @@ public class HandsOn02Test extends UnitContainerTestCase {
         String prefix = "S";
 
         // ## Act ##
+        // [1on1でのふぉろー] ListResultBeanのお話、DBFluteとしては具象のまま扱って欲しい感がある
+        // [1on1でのふぉろー] IntelliJだと、.var で左辺(戻り値)の補完ができる
+        // Java10ぐらいからは、varが使えるようになったので、ローカル変数においては補完を使わないこともあるが...
+        // 現場での浸透度と現実問題の話。
         List<Member> memberList = memberBhv.selectList(cb -> {
             // TODO shiny 後でどうsqlが生成されてるのかみてみる (2025/04/02)
+            // いつか、SQLのフォーマット揃えるプログラムのお話をしたい by jflute (2025/04/02)
+            // TODO shiny optionのところは、opって短い慣習的な名前にしているので合わせてもらえればと by jflute (2025/04/02)
             cb.query().setMemberName_LikeSearch(prefix, option -> option.likePrefix());
         });
 
         // ## Assert ##
         assertFalse(memberList.isEmpty());
         memberList.forEach(member -> {
+            // TODO shiny すでに宣言してる memberName を使おう by jflute (2025/04/02)
+            // IntelliJだと、control+Tでリファクタメニューが出てきて、そこで変数の抽出を使うと良い
             String memberName = member.getMemberName();
             log("memberName: {}", memberName);
             assertTrue(member.getMemberName().startsWith(prefix));
         });
     }
+    // TODO shiny [読み物課題] リファクタリングは思考のツール by jflute (2025/04/02)
+    // https://jflute.hatenadiary.jp/entry/20121202/1354442627
 
+    // TODO jflute 時間1on1はここから (2025/04/02)
     /**
      * 会員IDが1の会員を検索
      * o 一件検索として検索すること
