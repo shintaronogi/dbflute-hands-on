@@ -52,6 +52,7 @@ public class HandsOn02Test extends UnitContainerTestCase {
         });
 
         // ## Assert ##
+        // TODO shiny せっかくなので、assH => assertHasAnyElement() を使ってみてください by jflute (2025/04/09)
         assertFalse(memberList.isEmpty());
         memberList.forEach(member -> {
             // TODO shiny すでに宣言してる memberName を使おう by jflute (2025/04/02)
@@ -74,10 +75,19 @@ public class HandsOn02Test extends UnitContainerTestCase {
         // ## Arrange ##
         Integer targetId = 1;
         // ## Act ##
+        // [1on1でのふぉろー] 1件検索いろいろ
+        // o DBFluteのOptionalのお話
+        // o 例外メッセージの中の InvalidQuery とは？ ignoreのお話
+        // o cb.fetchFirst(1); => 中のコードも少し見てみた
+        // o 一件検索は、業務的に必ず存在すること前提で検索するとき、ないかもしれない前提で検索するとき
+        //   (それのどちらの状況なのかを必ず把握して一件検索をすること)
         memberBhv.selectByPK(1).alwaysPresent(member -> {
             // ## Assert ##
+            // TODO shiny memberId変数があるので、ちゃんと使おう by jflute (2025/04/09)
             Integer memberId = member.getMemberId();
             log("memberId: {}", memberId);
+            // TODO shiny このJUnitのデフォルトassertは第一引数がexpectedなので順番が逆 by jflute (2025/04/09)
+            // 落ちた時にメッセージの意味がおかしくなってしまう。expected:<1> but was:<99999>
             assertEquals(member.getMemberId(), targetId);
         });
     }
@@ -89,6 +99,7 @@ public class HandsOn02Test extends UnitContainerTestCase {
      */
     public void test_member_birthdate_is_null() {
         // ## Arrange ##
+
         // ## Act ##
         List<Member> memberList = memberBhv.selectList(cb -> {
             cb.query().setBirthdate_IsNull();
@@ -97,6 +108,8 @@ public class HandsOn02Test extends UnitContainerTestCase {
         // ## Assert ##
         assertFalse(memberList.isEmpty());
         memberList.forEach(member -> {
+            // TODO shiny カラムが BIRTHDATE と BIRTHとDATEを分けていないので... by jflute (2025/04/09)
+            // 変数名も birthDate ではなく、カラムに合わせて birthdate としましょう。
             LocalDate birthDate = member.getBirthdate();
             log("memberName: {}, birthDate: {}", member.getMemberName(), birthDate);
             assertNull(birthDate);
