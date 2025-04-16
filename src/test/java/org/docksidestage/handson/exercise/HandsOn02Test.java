@@ -22,7 +22,7 @@ public class HandsOn02Test extends UnitContainerTestCase {
      */
     public void test_existsTestData() {
         int memberCount = memberBhv.selectCount(cb -> {}
-                // TODO done shiny selectCount()にorder byは意味がないのでなくてOK (要件にもない) by jflute (2025/04/02)
+                // done shiny selectCount()にorder byは意味がないのでなくてOK (要件にもない) by jflute (2025/04/02)
         );
 
         assertTrue(memberCount > 0);
@@ -46,25 +46,25 @@ public class HandsOn02Test extends UnitContainerTestCase {
         ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
             // TODO shiny 後でどうsqlが生成されてるのかみてみる (2025/04/02)
             // いつか、SQLのフォーマット揃えるプログラムのお話をしたい by jflute (2025/04/02)
-            // TODO done shiny optionのところは、opって短い慣習的な名前にしているので合わせてもらえればと by jflute (2025/04/02)
+            // done shiny optionのところは、opって短い慣習的な名前にしているので合わせてもらえればと by jflute (2025/04/02)
             cb.query().setMemberName_LikeSearch(prefix, op -> op.likePrefix());
         });
 
         // ## Assert ##
-        // TODO done shiny せっかくなので、assH => assertHasAnyElement() を使ってみてください by jflute (2025/04/09)
+        // done shiny せっかくなので、assH => assertHasAnyElement() を使ってみてください by jflute (2025/04/09)
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO done shiny すでに宣言してる memberName を使おう by jflute (2025/04/02)
+            // done shiny すでに宣言してる memberName を使おう by jflute (2025/04/02)
             // IntelliJだと、control+Tでリファクタメニューが出てきて、そこで変数の抽出を使うと良い
             String memberName = member.getMemberName();
             log("memberName: {}", memberName);
             assertTrue(memberName.startsWith(prefix));
         });
     }
-    // TODO shiny [読み物課題] リファクタリングは思考のツール by jflute (2025/04/02)
+    // done shiny [読み物課題] リファクタリングは思考のツール by jflute (2025/04/02)
     // https://jflute.hatenadiary.jp/entry/20121202/1354442627
 
-    // TODO jflute 時間1on1はここから (2025/04/02)
+    // done jflute 時間1on1はここから (2025/04/02)
     /**
      * 会員IDが1の会員を検索
      * o 一件検索として検索すること
@@ -82,10 +82,10 @@ public class HandsOn02Test extends UnitContainerTestCase {
         //   (それのどちらの状況なのかを必ず把握して一件検索をすること)
         memberBhv.selectByPK(1).alwaysPresent(member -> {
             // ## Assert ##
-            // TODO done shiny memberId変数があるので、ちゃんと使おう by jflute (2025/04/09)
+            // done shiny memberId変数があるので、ちゃんと使おう by jflute (2025/04/09)
             Integer memberId = member.getMemberId();
             log("memberId: {}", memberId);
-            // TODO done shiny このJUnitのデフォルトassertは第一引数がexpectedなので順番が逆 by jflute (2025/04/09)
+            // done shiny このJUnitのデフォルトassertは第一引数がexpectedなので順番が逆 by jflute (2025/04/09)
             // 落ちた時にメッセージの意味がおかしくなってしまう。expected:<1> but was:<99999>
             assertEquals(targetId, memberId);
         });
@@ -107,7 +107,7 @@ public class HandsOn02Test extends UnitContainerTestCase {
         // ## Assert ##
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO done shiny カラムが BIRTHDATE と BIRTHとDATEを分けていないので... by jflute (2025/04/09)
+            // done shiny カラムが BIRTHDATE と BIRTHとDATEを分けていないので... by jflute (2025/04/09)
             // 変数名も birthDate ではなく、カラムに合わせて birthdate としましょう。
             LocalDate birthdate = member.getBirthdate();
             log("memberName: {}, birthDate: {}", member.getMemberName(), birthdate);
