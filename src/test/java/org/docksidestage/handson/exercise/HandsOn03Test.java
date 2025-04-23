@@ -11,7 +11,11 @@ import org.dbflute.cbean.result.ListResultBean;
 import org.docksidestage.handson.dbflute.exbhv.MemberBhv;
 import org.docksidestage.handson.dbflute.exbhv.MemberSecurityBhv;
 import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
-import org.docksidestage.handson.dbflute.exentity.*;
+import org.docksidestage.handson.dbflute.exentity.Member;
+import org.docksidestage.handson.dbflute.exentity.MemberSecurity;
+import org.docksidestage.handson.dbflute.exentity.MemberStatus;
+import org.docksidestage.handson.dbflute.exentity.Product;
+import org.docksidestage.handson.dbflute.exentity.Purchase;
 import org.docksidestage.handson.unit.UnitContainerTestCase;
 
 // TODO shiny javadoc by jflute (2025/04/16)
@@ -129,7 +133,14 @@ public class HandsOn03Test extends UnitContainerTestCase {
         Set<Integer> memberIds = memberList.extractColumnSet(member -> member.getMemberId());
         // これもできそう：memberBhv.extractMemberIdList(memberList);
         ListResultBean<MemberSecurity> memberSecurities = memberSecurityBhv.selectList(cb -> {
-            // TODO jflute "IN" Operatorについて聞きたいです！
+            // done jflute "IN" Operatorについて聞きたいです！
+            // [回答] orScopeQuery()で同じカラムの等値条件と変わらないけど...
+            // MySQLに対してわかりやすく示すという意味では、INの方が良いことがあるかも？
+            // (少なくとも、そういう姿勢で実装の判断をしていった方が良い)
+            //
+            // ちなみに、in, in句、SQLの条件のinとか会話で聞き直すこと一杯。だからInScope。
+            //
+            // ローマ字のカラム名の歴史、時々シンプルな言葉でローマ字にするのは悪くないと思う。
             cb.query().setMemberId_InScope(memberIds);
         });
         memberList.forEach(member -> {
@@ -141,6 +152,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // Stream APIで検索は直感的に分かりずらい
             assertTrue(reminderQuestion.isPresent());
             assertTrue(reminderQuestion.get().contains(target));
+            // TODO shiny ログ出すなら、assertよりも前の方が落ちた時に見れる (かつ、optionalのまま出してOK) by jflute (2025/04/23)
             log("Name: {}, ReminderQuestion: {}", member.getMemberName(), reminderQuestion.get());
         });
     }
@@ -168,6 +180,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // やりやすいアサートとやりにくいやつがある
         // Lambdaだと並んでることをアサートみないなのはしにくい気がする
 
+        // TODO shiny addOrderBy_DisplayOrder_Asc() を外して実行しても落ちない by jflute (2025/04/23)
         Set<String> memberStatusCodeSet = new HashSet<>();
         String previousStatusCode = "";
         for (Member member : memberList) {
@@ -175,13 +188,21 @@ public class HandsOn03Test extends UnitContainerTestCase {
             assertFalse(member.getMemberStatus().isPresent());
 
             String currentStatusCode = member.getMemberStatusCode();
-            if (currentStatusCode.equals(previousStatusCode)) {
+            if (currentStatusCode.equals(previousStatusCode)) { // 同じだったら (A, A, A...)
                 assertFalse(memberStatusCodeSet.contains(currentStatusCode));
                 memberStatusCodeSet.add(currentStatusCode);
             }
         }
     }
 
+    // [1on1でのふぉろー] 基点テーブル
+    // 結果セットにPKを付けるとしたら？
+
+    // [1on1でのふぉろー] 要件を絶対間違えないプログラマー
+    // 日本語の文章の構造を分析して解釈する習慣
+    
+    // TODO jflute 次回、サロゲートキーのお話 (2025/04/23)
+    // https://dbflute.seasar.org/ja/manual/topic/dbdesign/surrogatekey.html
     /**
      *生年月日が存在する会員の購入を検索
      * 会員名称と会員ステータス名称と商品名を取得する(ログ出力)
@@ -195,6 +216,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         ListResultBean<Purchase> purchases = purchaseBhv.selectList(cb -> {
             cb.setupSelect_Member().withMemberStatus();
             cb.setupSelect_Product();
+            // TODO shiny "生年月日が存在する" by jflute (2025/04/23)
             cb.query().addOrderBy_PurchaseDatetime_Desc();
             cb.query().addOrderBy_PurchasePrice_Desc();
             cb.query().addOrderBy_ProductId_Asc();
@@ -205,6 +227,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         purchases.forEach(purchase -> {
             Member member = purchase.getMember().orElseThrow();
             MemberStatus status = member.getMemberStatus().orElseThrow();
+            // TODO shiny unusedになってる by jflute (2025/04/23)
             Product product = purchase.getProduct().orElseThrow();
 
             log("MemberName: {}, MemberStatus: {}, ProductName: {}", member.getMemberName(), status.getMemberStatusName(),
