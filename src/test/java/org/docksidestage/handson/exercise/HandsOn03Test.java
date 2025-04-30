@@ -1,6 +1,8 @@
 package org.docksidestage.handson.exercise;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -11,11 +13,7 @@ import org.dbflute.cbean.result.ListResultBean;
 import org.docksidestage.handson.dbflute.exbhv.MemberBhv;
 import org.docksidestage.handson.dbflute.exbhv.MemberSecurityBhv;
 import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
-import org.docksidestage.handson.dbflute.exentity.Member;
-import org.docksidestage.handson.dbflute.exentity.MemberSecurity;
-import org.docksidestage.handson.dbflute.exentity.MemberStatus;
-import org.docksidestage.handson.dbflute.exentity.Product;
-import org.docksidestage.handson.dbflute.exentity.Purchase;
+import org.docksidestage.handson.dbflute.exentity.*;
 import org.docksidestage.handson.unit.UnitContainerTestCase;
 
 // TODO shiny javadoc by jflute (2025/04/16)
@@ -188,10 +186,12 @@ public class HandsOn03Test extends UnitContainerTestCase {
             assertFalse(member.getMemberStatus().isPresent());
 
             String currentStatusCode = member.getMemberStatusCode();
-            if (currentStatusCode.equals(previousStatusCode)) { // 同じだったら (A, A, A...)
+            // 同じでなければ、セットに存在していないことをアサートして、追加。
+            if (!currentStatusCode.equals(previousStatusCode)) { // 同じだったら (A, A, A...)
                 assertFalse(memberStatusCodeSet.contains(currentStatusCode));
                 memberStatusCodeSet.add(currentStatusCode);
             }
+            previousStatusCode = currentStatusCode;
         }
     }
 
@@ -200,7 +200,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
 
     // [1on1でのふぉろー] 要件を絶対間違えないプログラマー
     // 日本語の文章の構造を分析して解釈する習慣
-    
+
     // TODO jflute 次回、サロゲートキーのお話 (2025/04/23)
     // https://dbflute.seasar.org/ja/manual/topic/dbdesign/surrogatekey.html
     /**
@@ -216,26 +216,70 @@ public class HandsOn03Test extends UnitContainerTestCase {
         ListResultBean<Purchase> purchases = purchaseBhv.selectList(cb -> {
             cb.setupSelect_Member().withMemberStatus();
             cb.setupSelect_Product();
-            // TODO shiny "生年月日が存在する" by jflute (2025/04/23)
+            // TODO done shiny "生年月日が存在する" by jflute (2025/04/23)
+            cb.query().queryMember().setBirthdate_IsNotNull();
             cb.query().addOrderBy_PurchaseDatetime_Desc();
             cb.query().addOrderBy_PurchasePrice_Desc();
             cb.query().addOrderBy_ProductId_Asc();
             cb.query().addOrderBy_MemberId_Asc();
         });
 
+        // ## Assert ##
         assertHasAnyElement(purchases);
         purchases.forEach(purchase -> {
             Member member = purchase.getMember().orElseThrow();
             MemberStatus status = member.getMemberStatus().orElseThrow();
-            // TODO shiny unusedになってる by jflute (2025/04/23)
+            // TODO done shiny unusedになってる by jflute (2025/04/23)
             Product product = purchase.getProduct().orElseThrow();
 
             log("MemberName: {}, MemberStatus: {}, ProductName: {}", member.getMemberName(), status.getMemberStatusName(),
-                    purchase.getProductId());
+                    product.getProductId());
 
-            // 落ちる？
-            // log("birthdate: ", member.getBirthdate());
+            log("birthdate: ", member.getBirthdate());
             assertNotNull(member.getBirthdate());
+        });
+    }
+
+    /**
+     * 2005年10月の1日から3日までに正式会員になった会員を検索
+     * 画面からの検索条件で2005年10月1日と2005年10月3日がリクエストされたと想定して...
+     * Arrange で String の "2005/10/01", "2005/10/03" を一度宣言してから日時クラスに変換し...
+     * 自分で日付移動などはせず、DBFluteの機能を使って、そのままの日付(日時)を使って条件を設定
+     * 会員ステータスも一緒に取得
+     * ただし、会員ステータス名称だけ取得できればいい (説明や表示順カラムは不要)
+     * 会員名称に "vi" を含む会員を検索
+     * 会員名称と正式会員日時と会員ステータス名称をログに出力
+     * 会員ステータスがコードと名称だけが取得されていることをアサート
+     * 会員の正式会員日時が指定された条件の範囲内であることをアサート
+     */
+    public void test_6() {
+        // ## Arrange ##
+        // リクエストが文字列で送られてくると仮定
+        String requestFrom = "2005/10/01";
+        String requestTo = "2005/10/03";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+        LocalDateTime convertedFrom = LocalDate.parse(requestFrom, formatter).atStartOfDay();
+        LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atTime(23, 59);
+        String targetName = "vi";
+        // ## Act ##
+        ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
+            cb.setupSelect_MemberStatus();
+            cb.specify().specifyMemberStatus().columnMemberStatusName();
+            cb.query().setMemberName_LikeSearch(targetName, op -> op.likeContain());
+            cb.query().setFormalizedDatetime_FromTo(convertedFrom, convertedTo, op -> op.compareAsDate());
+            // TODO dbflute 生成されたSQLみると、dfloc.FORMALIZED_DATETIME < '2005-10-04 00:00:00.000'になった！？
+        });
+        // ## Assert ##
+        assertHasAnyElement(memberList);
+        memberList.forEach(member -> {
+            String memberName = member.getMemberName();
+            LocalDateTime formalizedDatetime = member.getFormalizedDatetime();
+            String statusName = member.getMemberStatus().get().getMemberStatusName();
+            log("MemberName: {}, FormalizedDatetime: {}, StatusName: {}", memberName, formalizedDatetime, statusName);
+            assertTrue(formalizedDatetime.isEqual(convertedFrom) || formalizedDatetime.isAfter(convertedFrom));
+            assertTrue(formalizedDatetime.isEqual(convertedTo) || formalizedDatetime.isBefore(convertedTo));
+
+            // まだAssert途中...
         });
     }
 }
