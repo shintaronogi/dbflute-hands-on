@@ -178,7 +178,13 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // やりやすいアサートとやりにくいやつがある
         // Lambdaだと並んでることをアサートみないなのはしにくい気がする
 
-        // TODO shiny addOrderBy_DisplayOrder_Asc() を外して実行しても落ちない by jflute (2025/04/23)
+        // done shiny addOrderBy_DisplayOrder_Asc() を外して実行しても落ちない by jflute (2025/04/23)
+        // [質問] Linkedの方が処理は重くなるのか？ (リンクしている分)
+        // 確かに、1.4の時代に必要なければLinkedじゃないほうが良いとよく言われた。
+        // ただ、現代のPCパワーだとほぼほぼ気にしなくてもいいくらいで、わりとアバウト。
+        // LinkedHashMapに関しては、before/afterの参照を持っている。
+        // 一方で、LinkedHashSetに関しては...あらりゃ？spliterator()だけORDEREDってあるけど？
+        // TODO jflute LinkedHashSetの実装どうなってるの？ (2025/04/30)
         Set<String> memberStatusCodeSet = new HashSet<>();
         String previousStatusCode = "";
         for (Member member : memberList) {
@@ -187,12 +193,14 @@ public class HandsOn03Test extends UnitContainerTestCase {
 
             String currentStatusCode = member.getMemberStatusCode();
             // 同じでなければ、セットに存在していないことをアサートして、追加。
-            if (!currentStatusCode.equals(previousStatusCode)) { // 同じだったら (A, A, A...)
+            if (!currentStatusCode.equals(previousStatusCode)) {
                 assertFalse(memberStatusCodeSet.contains(currentStatusCode));
-                memberStatusCodeSet.add(currentStatusCode);
             }
+            memberStatusCodeSet.add(currentStatusCode);
             previousStatusCode = currentStatusCode;
         }
+        // 分析的なアサートのやり方も紹介した
+        //assertEquals(memberStatusCodeSet.size(), switchCount + 1);
     }
 
     // [1on1でのふぉろー] 基点テーブル
@@ -203,6 +211,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
 
     // TODO jflute 次回、サロゲートキーのお話 (2025/04/23)
     // https://dbflute.seasar.org/ja/manual/topic/dbdesign/surrogatekey.html
+    // [1on1でのふぉろー] 話ししたー
     /**
      *生年月日が存在する会員の購入を検索
      * 会員名称と会員ステータス名称と商品名を取得する(ログ出力)
@@ -216,7 +225,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         ListResultBean<Purchase> purchases = purchaseBhv.selectList(cb -> {
             cb.setupSelect_Member().withMemberStatus();
             cb.setupSelect_Product();
-            // TODO done shiny "生年月日が存在する" by jflute (2025/04/23)
+            // done shiny "生年月日が存在する" by jflute (2025/04/23)
             cb.query().queryMember().setBirthdate_IsNotNull();
             cb.query().addOrderBy_PurchaseDatetime_Desc();
             cb.query().addOrderBy_PurchasePrice_Desc();
@@ -229,7 +238,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         purchases.forEach(purchase -> {
             Member member = purchase.getMember().orElseThrow();
             MemberStatus status = member.getMemberStatus().orElseThrow();
-            // TODO done shiny unusedになってる by jflute (2025/04/23)
+            // done shiny unusedになってる by jflute (2025/04/23)
             Product product = purchase.getProduct().orElseThrow();
 
             log("MemberName: {}, MemberStatus: {}, ProductName: {}", member.getMemberName(), status.getMemberStatusName(),
@@ -259,6 +268,8 @@ public class HandsOn03Test extends UnitContainerTestCase {
         String requestTo = "2005/10/03";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDateTime convertedFrom = LocalDate.parse(requestFrom, formatter).atStartOfDay();
+        // TODO shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
+        // (一方で、59秒間の空白時間があるので、やるなら、23,59,59,999まで埋めちゃった方がいいかなと)
         LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atTime(23, 59);
         String targetName = "vi";
         // ## Act ##
@@ -267,7 +278,9 @@ public class HandsOn03Test extends UnitContainerTestCase {
             cb.specify().specifyMemberStatus().columnMemberStatusName();
             cb.query().setMemberName_LikeSearch(targetName, op -> op.likeContain());
             cb.query().setFormalizedDatetime_FromTo(convertedFrom, convertedTo, op -> op.compareAsDate());
-            // TODO dbflute 生成されたSQLみると、dfloc.FORMALIZED_DATETIME < '2005-10-04 00:00:00.000'になった！？
+            // done dbflute 生成されたSQLみると、dfloc.FORMALIZED_DATETIME < '2005-10-04 00:00:00.000'になった！？
+            // [1on1でのふぉろー] DateFromToのお話をした、日付は間違いやすい話も
+            // Dateという概念自体が思いっきり人間の決め事ででているもの
         });
         // ## Assert ##
         assertHasAnyElement(memberList);
