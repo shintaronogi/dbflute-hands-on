@@ -10,13 +10,18 @@ import java.util.Set;
 import javax.annotation.Resource;
 
 import org.dbflute.cbean.result.ListResultBean;
+import org.dbflute.exception.NonSpecifiedColumnAccessException;
 import org.docksidestage.handson.dbflute.exbhv.MemberBhv;
 import org.docksidestage.handson.dbflute.exbhv.MemberSecurityBhv;
 import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
 import org.docksidestage.handson.dbflute.exentity.*;
 import org.docksidestage.handson.unit.UnitContainerTestCase;
 
-// TODO shiny javadoc by jflute (2025/04/16)
+// TODO done shiny javadoc by jflute (2025/04/16)
+
+/**
+ * @author shiny
+ */
 public class HandsOn03Test extends UnitContainerTestCase {
 
     @Resource
@@ -49,7 +54,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // ## Assert ##
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
+            // TODO done shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
             // 変数のスコープの広さ次第で変数名をどれだけ修飾するか決まる。
             // but ここではカラム名を省略するわけではなく、テーブル名 prefix を外すだけ
             // 名前は識別するためのもの、識別する人のことを想像して判断する
@@ -91,7 +96,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // (カーディナリティのセカンドレベル、ERDだと黒丸、テーブルコメントにも書いてある)
             assertTrue(member.getMemberSecurityAsOne().isPresent());
 
-            // TODO shiny [読み物課題] これ最重要 by jflute (2025/04/16)
+            // TODO done shiny [読み物課題] これ最重要 by jflute (2025/04/16)
             // 会員から会員ステータスは、NotNullのFKカラムで参照しているので、探しにいけば必ず存在する
             // 会員から会員セキュリティは、FKの方向と探しにいく方向が逆なので同じ理論にはなりませんが、
             // ERDのリレーションシップ線に注目。会員退会情報と比べると一目瞭然、黒丸がついていないので必ず存在する1
@@ -148,10 +153,10 @@ public class HandsOn03Test extends UnitContainerTestCase {
                     .findFirst()
                     .map(security -> security.getReminderQuestion());
             // Stream APIで検索は直感的に分かりずらい
+            log("Name: {}, ReminderQuestion: {}", member.getMemberName(), reminderQuestion.get());
             assertTrue(reminderQuestion.isPresent());
             assertTrue(reminderQuestion.get().contains(target));
-            // TODO shiny ログ出すなら、assertよりも前の方が落ちた時に見れる (かつ、optionalのまま出してOK) by jflute (2025/04/23)
-            log("Name: {}, ReminderQuestion: {}", member.getMemberName(), reminderQuestion.get());
+            // TODO done shiny ログ出すなら、assertよりも前の方が落ちた時に見れる (かつ、optionalのまま出してOK) by jflute (2025/04/23)
         });
     }
 
@@ -270,8 +275,10 @@ public class HandsOn03Test extends UnitContainerTestCase {
         LocalDateTime convertedFrom = LocalDate.parse(requestFrom, formatter).atStartOfDay();
         // TODO shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
         // (一方で、59秒間の空白時間があるので、やるなら、23,59,59,999まで埋めちゃった方がいいかなと)
-        LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atTime(23, 59);
+        LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atStartOfDay();
         String targetName = "vi";
+
+        adjustMember_FormalizedDatetime_FirstOnly(convertedFrom, targetName);
         // ## Act ##
         ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
             cb.setupSelect_MemberStatus();
@@ -287,12 +294,72 @@ public class HandsOn03Test extends UnitContainerTestCase {
         memberList.forEach(member -> {
             String memberName = member.getMemberName();
             LocalDateTime formalizedDatetime = member.getFormalizedDatetime();
-            String statusName = member.getMemberStatus().get().getMemberStatusName();
-            log("MemberName: {}, FormalizedDatetime: {}, StatusName: {}", memberName, formalizedDatetime, statusName);
-            assertTrue(formalizedDatetime.isEqual(convertedFrom) || formalizedDatetime.isAfter(convertedFrom));
-            assertTrue(formalizedDatetime.isEqual(convertedTo) || formalizedDatetime.isBefore(convertedTo));
+            MemberStatus status = member.getMemberStatus().orElseThrow();
 
-            // まだAssert途中...
+            log("MemberName: {}, FormalizedDatetime: {}, StatusName: {}", memberName, formalizedDatetime, status);
+
+            assertNotNull(status.getMemberStatusName());
+            assertNotNull(status.getMemberStatusCode());
+
+            // どういうExceptionがでるか試してみる
+            // status.getDescription();
+            assertException(NonSpecifiedColumnAccessException.class, () -> status.getDescription());
+            assertException(NonSpecifiedColumnAccessException.class, () -> status.getDisplayOrder());
+
+            assertTrue(formalizedDatetime.isEqual(convertedFrom) || formalizedDatetime.isAfter(convertedFrom));
+            assertTrue(formalizedDatetime.isBefore(convertedTo.plusDays(1)));
         });
+    }
+
+    /**
+     * 正式会員になってから一週間以内の購入を検索
+     * 会員と会員ステータス、会員セキュリティ情報も一緒に取得
+     * 商品と商品ステータス、商品カテゴリ、さらに上位の商品カテゴリも一緒に取得
+     * 上位の商品カテゴリ名が取得できていることをアサート
+     * 購入日時が正式会員になってから一週間以内であることをアサート
+     */
+    public void test_07() {
+        // ## Arrange
+        adjustPurchase_PurchaseDatetime_fromFormalizedDatetimeInWeek();
+        // ## Act
+        ListResultBean<Purchase> purchases = purchaseBhv.selectList(cb -> {
+            cb.setupSelect_Member().withMemberStatus();
+            cb.setupSelect_Member().withMemberSecurityAsOne();
+            cb.setupSelect_Product().withProductStatus();
+            cb.setupSelect_Product().withProductCategory().withProductCategorySelf();
+            cb.columnQuery(colcb -> colcb.specify().columnPurchaseDatetime())
+                    .greaterEqual(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime());
+            // 普通にplusでは正しく動いてなさそう
+            // 綺麗な形ではないけど、一般的にDatetime型に+INTすると日時の加算として解釈してはくれそうな気はするが
+            // とはいえ、基本的にSQLサーバーにはdateadd()関数あると思うので（Postgresとかではある）そっちを使ってみる
+            cb.columnQuery(colcb -> colcb.specify().columnPurchaseDatetime())
+                    .lessThan(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime().convert(op -> op.addDay(8)));
+        });
+        // ## Assert
+        assertHasAnyElement(purchases);
+        purchases.forEach(purchase -> {
+            Product product = purchase.getProduct().orElseThrow();
+            // こういう時のorElseThrow()はちょっと冗長感あるので、Getと書きたくなる（まあどっちでもいいのだが）
+            ProductCategory productCategory = product.getProductCategory().orElseThrow().getProductCategorySelf().orElseThrow();
+            // なければ落ちるのだがassert
+            assertNotNull(productCategory);
+            LocalDateTime purchaseDatetime = purchase.getPurchaseDatetime();
+            LocalDateTime formalizedDatetime = purchase.getMember().orElseThrow().getFormalizedDatetime();
+            log("purchaseDatetime: {}, formalizedDatetime: {}", purchaseDatetime, formalizedDatetime);
+            // adjustPurchase_PurchaseDatetime()の呼び出しで、取得できる件数が１増えた
+            // 増えるか増えないかは元々の解釈で際どいところである。。笑
+            // 理由は、1週間以内の定義で、その日を1週間のうちにみなすか、その日から1週間にするかの違い
+            // 初期の自分の解釈では、その日から1週間以内 = つまり合計8日が対象になる
+            // 追加されたpurchaseDatetimeがちょうど8日目の23:59なのでこの購入が増えることになる
+            assertTrue(purchaseDatetime.isEqual(formalizedDatetime) || purchaseDatetime.isAfter(formalizedDatetime));
+            assertTrue(purchaseDatetime.isBefore(formalizedDatetime.plusDays(8)));
+        });
+    }
+
+    /**
+     *
+     */
+    public void test_08() {
+
     }
 }
