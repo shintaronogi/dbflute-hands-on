@@ -273,7 +273,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         String requestTo = "2005/10/03";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDateTime convertedFrom = LocalDate.parse(requestFrom, formatter).atStartOfDay();
-        // TODO shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
+        // TODO done shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
         // (一方で、59秒間の空白時間があるので、やるなら、23,59,59,999まで埋めちゃった方がいいかなと)
         LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atStartOfDay();
         String targetName = "vi";
