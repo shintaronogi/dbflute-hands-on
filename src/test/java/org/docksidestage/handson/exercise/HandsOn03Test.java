@@ -17,7 +17,7 @@ import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
 import org.docksidestage.handson.dbflute.exentity.*;
 import org.docksidestage.handson.unit.UnitContainerTestCase;
 
-// TODO done shiny javadoc by jflute (2025/04/16)
+// done shiny javadoc by jflute (2025/04/16)
 
 /**
  * @author shiny
@@ -54,7 +54,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // ## Assert ##
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO done shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
+            // TODO shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
             // 変数のスコープの広さ次第で変数名をどれだけ修飾するか決まる。
             // but ここではカラム名を省略するわけではなく、テーブル名 prefix を外すだけ
             // 名前は識別するためのもの、識別する人のことを想像して判断する
@@ -156,7 +156,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             log("Name: {}, ReminderQuestion: {}", member.getMemberName(), reminderQuestion.get());
             assertTrue(reminderQuestion.isPresent());
             assertTrue(reminderQuestion.get().contains(target));
-            // TODO done shiny ログ出すなら、assertよりも前の方が落ちた時に見れる (かつ、optionalのまま出してOK) by jflute (2025/04/23)
+            // done shiny ログ出すなら、assertよりも前の方が落ちた時に見れる (かつ、optionalのまま出してOK) by jflute (2025/04/23)
         });
     }
 
@@ -214,7 +214,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
     // [1on1でのふぉろー] 要件を絶対間違えないプログラマー
     // 日本語の文章の構造を分析して解釈する習慣
 
-    // TODO jflute 次回、サロゲートキーのお話 (2025/04/23)
+    // done jflute 次回、サロゲートキーのお話 (2025/04/23)
     // https://dbflute.seasar.org/ja/manual/topic/dbdesign/surrogatekey.html
     // [1on1でのふぉろー] 話ししたー
     /**
@@ -273,7 +273,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         String requestTo = "2005/10/03";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDateTime convertedFrom = LocalDate.parse(requestFrom, formatter).atStartOfDay();
-        // TODO shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
+        // done shiny compareAsDate()的には、atTime(23, 59)はなくてOK。単純にLocalDateTimeに変換で by jflute (2025/04/30)
         // (一方で、59秒間の空白時間があるので、やるなら、23,59,59,999まで埋めちゃった方がいいかなと)
         LocalDateTime convertedTo = LocalDate.parse(requestTo, formatter).atStartOfDay();
         String targetName = "vi";
@@ -327,19 +327,35 @@ public class HandsOn03Test extends UnitContainerTestCase {
             cb.setupSelect_Member().withMemberSecurityAsOne();
             cb.setupSelect_Product().withProductStatus();
             cb.setupSelect_Product().withProductCategory().withProductCategorySelf();
+            // [1on1でのふぉろー] columnQuery() の作り大変だった話
+            // 1週間以内の解釈、truncTime()してからaddDay(8)の話
+            //
+            // 10/3                    10/10     10/11
+            //  13h                      0h  13h   0h   13h
+            //   |                       |    |    |     |
+            //   |       D               | I  |    |     | P
+            // A |                       |H  J|L   |O    |
+            //   |C                  E   G    K    N     |
+            //   B                      F|    |   M|     |
+            //   |                       |         |     |
+            //
             cb.columnQuery(colcb -> colcb.specify().columnPurchaseDatetime())
                     .greaterEqual(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime());
             // 普通にplusでは正しく動いてなさそう
             // 綺麗な形ではないけど、一般的にDatetime型に+INTすると日時の加算として解釈してはくれそうな気はするが
             // とはいえ、基本的にSQLサーバーにはdateadd()関数あると思うので（Postgresとかではある）そっちを使ってみる
             cb.columnQuery(colcb -> colcb.specify().columnPurchaseDatetime())
-                    .lessThan(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime().convert(op -> op.addDay(8)));
+                    .lessThan(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime()).convert(op -> op.addDay(8));
+            // [質問] TimeZone自体を保存できる日時はどうなる？
+            // addDay()とかは相対的だから大丈夫かもだけど、trunc()はダメそう。
+            // 国際化対応のお話よもやま
         });
         // ## Assert
         assertHasAnyElement(purchases);
         purchases.forEach(purchase -> {
             Product product = purchase.getProduct().orElseThrow();
             // こういう時のorElseThrow()はちょっと冗長感あるので、Getと書きたくなる（まあどっちでもいいのだが）
+            // すっごいその気持わかる(^^ by jflute
             ProductCategory productCategory = product.getProductCategory().orElseThrow().getProductCategorySelf().orElseThrow();
             // なければ落ちるのだがassert
             assertNotNull(productCategory);
