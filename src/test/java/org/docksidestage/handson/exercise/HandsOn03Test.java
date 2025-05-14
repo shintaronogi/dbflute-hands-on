@@ -54,13 +54,13 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // ## Assert ##
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
+            // TODO done shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
             // 変数のスコープの広さ次第で変数名をどれだけ修飾するか決まる。
             // but ここではカラム名を省略するわけではなく、テーブル名 prefix を外すだけ
             // 名前は識別するためのもの、識別する人のことを想像して判断する
-            LocalDate memberBirthdate = member.getBirthdate();
-            log(member.getMemberName(), memberBirthdate, member.getMemberStatus());
-            assertTrue(memberBirthdate.isEqual(targetDate) || memberBirthdate.isBefore(targetDate));
+            LocalDate birthdate = member.getBirthdate();
+            log(member.getMemberName(), birthdate, member.getMemberStatus());
+            assertTrue(birthdate.isEqual(targetDate) || birthdate.isBefore(targetDate));
             // 別のやり方: これが正解というわけではないが参考として
             //assertFalse(memberBirthdate.isAfter(targetDate));
         });
@@ -345,7 +345,8 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // 綺麗な形ではないけど、一般的にDatetime型に+INTすると日時の加算として解釈してはくれそうな気はするが
             // とはいえ、基本的にSQLサーバーにはdateadd()関数あると思うので（Postgresとかではある）そっちを使ってみる
             cb.columnQuery(colcb -> colcb.specify().columnPurchaseDatetime())
-                    .lessThan(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime()).convert(op -> op.addDay(8));
+                    .lessThan(colcb -> colcb.specify().specifyMember().columnFormalizedDatetime())
+                    .convert(op -> op.addDay(8));
             // [質問] TimeZone自体を保存できる日時はどうなる？
             // addDay()とかは相対的だから大丈夫かもだけど、trunc()はダメそう。
             // 国際化対応のお話よもやま
@@ -373,9 +374,154 @@ public class HandsOn03Test extends UnitContainerTestCase {
     }
 
     /**
-     *
+     * 1974年までに生まれた、もしくは不明の会員を検索
+     * 画面からの検索条件で1974年がリクエストされたと想定
+     * Arrange で String の "1974/01/01" を一度宣言してから日付クラスに変換
+     * その日付クラスの値を、(日付移動などせず)そのまま使って検索条件を実現
+     * 会員ステータス名称、リマインダ質問と回答、退会理由入力テキストを取得する(ログ出力) ※1
+     * 若い順だが生年月日が null のデータを最初に並べる
+     * 生年月日が指定された条件に合致することをアサート (1975年1月1日なら落ちるように)
+     * Arrangeで "きわどいデータ" ※2 を作ってみましょう (Behavior の updateNonstrict() ※3 を使って)
+     * 検索で含まれるはずの "きわどいデータ" が検索されてることをアサート (アサート自体の保証のため)
+     * 生まれが不明の会員が先頭になっていることをアサート
      */
     public void test_08() {
+        // 前提：
+        // 1974年までに生まれたは、1974年を含むのか？っていうのが微妙。
+        // 一般的には含む気がする
 
+        // ## Arrange
+        String requestTo = "1974/01/01";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+        LocalDate convertedTo = LocalDate.parse(requestTo, formatter);
+
+        LocalDate birthdateLimit = LocalDate.of(1974, 12, 31);
+        adjustMember_Birthdate(1, birthdateLimit);
+
+        LocalDate birthDateAboveLimit = LocalDate.of(1975, 1, 1);
+        adjustMember_Birthdate(3, birthDateAboveLimit);
+
+        // ## Act
+        ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
+            cb.setupSelect_MemberStatus();
+            cb.specify().specifyMemberStatus().columnMemberStatusName();
+            cb.setupSelect_MemberSecurityAsOne();
+            cb.specify().specifyMemberSecurityAsOne().columnReminderQuestion();
+            cb.specify().specifyMemberSecurityAsOne().columnReminderAnswer();
+            cb.setupSelect_MemberWithdrawalAsOne();
+            cb.specify().specifyMemberWithdrawalAsOne().columnWithdrawalReasonInputText();
+            // 最初setBirthdate_lessthanとかでいけないかなと思ったけど、LocalDateを入れるシンプルなものしか作れなさそう
+            // やりたいことは「年」で比較することなので少しだけ複雑なクエリを書きたい
+            // setBirthdate_FromTo()のJavaDocでこう書いてあったので使えそう
+            // @param fromDatetime The from-datetime(yyyy/MM/dd HH:mm:ss.SSS) of birthdate. (basically NotNull: if op.allowOneSide(), null allowed)
+            cb.query().setBirthdate_FromTo(null, convertedTo, op -> op.allowOneSide().compareAsYear().orIsNull());
+            // order byでwithNullsFirst() / withNullsLast()できるの非常に便利！
+            cb.query().addOrderBy_Birthdate_Desc().withNullsFirst();
+        });
+
+        // ## Assert
+        assertHasAnyElement(memberList);
+
+        // 際どいデータテスト用のやつ
+        boolean existsMemberWithBirthdateLimit = false;
+
+        for (Member member : memberList) {
+            // ログ出し
+            MemberStatus status = member.getMemberStatus().get();
+            MemberSecurity security = member.getMemberSecurityAsOne().get();
+            // 退会理由textにnot null制約はあるものの、退会していない場合はそもそも退会理由が存在しないのでOptionalの処理いれる
+            String reason = member.getMemberWithdrawalAsOne().map(wdl -> wdl.getWithdrawalReasonInputText()).orElse("なし");
+            log(status.getMemberStatusName(), security.getReminderQuestion(), security.getReminderAnswer(), reason);
+
+            // アサート
+            LocalDate birthdate = member.getBirthdate();
+            if (birthdate != null) {
+                assertTrue(birthdate.isBefore(LocalDate.of(1975, 1, 1)));
+                if (birthdate.isEqual(birthdateLimit)) {
+                    existsMemberWithBirthdateLimit = true;
+                }
+            }
+        }
+        assertTrue(existsMemberWithBirthdateLimit);
+        // birthdateがnullではないやつ含まれてなくて落ちた。どうやってやるんだろう。
+        assertNull(memberList.get(0).getBirthdate());
     }
+
+    public void adjustMember_Birthdate(Integer memberId, LocalDate birthdate) {
+        Member member = new Member();
+        member.setMemberId(memberId);
+        member.setBirthdate(birthdate);
+        memberBhv.updateNonstrict(member);
+    }
+
+    /**
+     * 2005年6月に正式会員になった会員を先に並べて生年月日のない会員を検索
+     * 画面からの検索条件で2005年6月がリクエストされたと想定
+     * Arrange で String の "2005/06/01" を一度宣言してから日付クラスに変換
+     * その日付クラスの値を、(日付移動などせず)そのまま使って検索条件を実現
+     * 第二ソートキーは会員IDの降順
+     * 検索された会員の生年月日が存在しないことをアサート
+     * 2005年6月に正式会員になった会員が先に並んでいることをアサート (先頭だけじゃなく全体をチェック)
+     */
+    public void test_09() {
+        // ## Arrange
+        // ふと思ったけどこういう場合ってClient側ではYYYY/MMだけ保持して、送る -> サーバー側でパース?
+        // 画面ではYYYY/MM出しつつ、内部ではDD HH:MI...まで保持して送るのか?
+        // 画面の実装考えるのも少々大変そう
+        // とりあえずここは、YYYY/MM/DDまでと仮定してみる
+        String requestDate = "2005/06/01";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+        LocalDate convertedDate = LocalDate.parse(requestDate, formatter);
+
+        // ## Act
+        ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
+            // 問題文に多少だまされそうになるが、あくまで検索するのは生年月日のない会員
+            // 単純に2005/06月の正社員を「先」に並べるってこと。どういうこと？笑
+            cb.query().setBirthdate_IsNull();
+            // 結構なやむ。
+            // 最終的なSQLのイメージは、formalized_datetimeに対してorder byがかかっていて、
+            // 2025-06の会員だったら1、それ以外は0という感じでOrderする
+            // これだとDesc前提だけど、ascで逆のこともできる
+            // なのでイメージとしては、addOrderBy -> withOrderてきなやつ
+            // withManualOrder()発見！
+            // optionたくさんあるな・・
+            // when_FromToとか？おー色々な型ようにあるっ！
+            // 2025-06-01 - 2025-07-01を指定できればいい
+            // plusMonths(1)にしてみると2005-07-01になるけど、lessthanってどうやってやるんだ・・
+            // compareAsDateにするとその日を含むことになってしまう
+            // もはや2025-06-01にしてcompareAsMonth()にしたら右側は2005-07-01になるか？
+            // 実行されたSQLみてそうなっていることを確認。
+            // わかりやすいかと言われると少しうーんって思うところではあります。
+            cb.query().addOrderBy_FormalizedDatetime_Asc().withManualOrder(op -> {
+                op.when_FromTo(convertedDate, convertedDate, fop -> fop.compareAsMonth());
+            });
+            cb.query().addOrderBy_MemberId_Desc();
+        });
+
+        // ## Assert
+        assertHasAnyElement(memberList);
+
+        LocalDate targetMonth = LocalDate.of(2005, 6, 1);
+
+        // ここのアサート少し考えないといけない
+        // 2005-06から順に並んでいて、それ以降は別の人っていうのはフラグで管理できる（前にもうやったようなやつ）
+        // ただケースとして、そんな人が一人もいないということもありえる？
+        // いや、でもそれは別にいいのか。重要なのはボーダーを超えた時に、TrueになってそれがTrueでい続けることか
+        // 命名なやむー・・・こういう時ってどういう名前つけるのが主流なんだろう。
+        boolean passedTargetMonthBorder = false;
+
+        for (Member member : memberList) {
+            assertNull(member.getBirthdate());
+            LocalDateTime formalizedDatetime = member.getFormalizedDatetime();
+            if (formalizedDatetime != null && formalizedDatetime.getYear() == targetMonth.getYear()
+                    && formalizedDatetime.getMonth() == targetMonth.getMonth()) {
+                assertFalse(passedTargetMonthBorder);
+            } else {
+                passedTargetMonthBorder = true;
+            }
+        }
+        assertTrue(passedTargetMonthBorder);
+    }
+
+    // ページング検索などについてはまた今度やります・・
 }
