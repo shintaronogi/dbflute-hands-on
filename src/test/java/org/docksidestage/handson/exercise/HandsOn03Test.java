@@ -11,6 +11,7 @@ import javax.annotation.Resource;
 
 import org.dbflute.cbean.result.ListResultBean;
 import org.dbflute.exception.NonSpecifiedColumnAccessException;
+import org.dbflute.helper.thread.CountDownRace;
 import org.docksidestage.handson.dbflute.exbhv.MemberBhv;
 import org.docksidestage.handson.dbflute.exbhv.MemberSecurityBhv;
 import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
@@ -395,6 +396,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDate convertedTo = LocalDate.parse(requestTo, formatter);
 
+        // TODO shiny Limitが少々迷ったので、LastDayみたいな露骨な表現を入れてもいいかも？ by jflute (2025/05/14)
         LocalDate birthdateLimit = LocalDate.of(1974, 12, 31);
         adjustMember_Birthdate(1, birthdateLimit);
 
@@ -436,6 +438,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // アサート
             LocalDate birthdate = member.getBirthdate();
             if (birthdate != null) {
+                // TODO shiny birthDateAboveLimitがいるのでそっちを使いましょう by jflute (2025/05/14)
                 assertTrue(birthdate.isBefore(LocalDate.of(1975, 1, 1)));
                 if (birthdate.isEqual(birthdateLimit)) {
                     existsMemberWithBirthdateLimit = true;
@@ -469,6 +472,8 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // 画面ではYYYY/MM出しつつ、内部ではDD HH:MI...まで保持して送るのか?
         // 画面の実装考えるのも少々大変そう
         // とりあえずここは、YYYY/MM/DDまでと仮定してみる
+        // [1on1でのふぉろー] 両方あって、わかりやすく最低限の文字列で飛ばす場合もあれば...
+        // Date to Dateの型によるチェックを優先して、01はダミーとして年月を担保するためにフルで飛ばす場合も。
         String requestDate = "2005/06/01";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDate convertedDate = LocalDate.parse(requestDate, formatter);
@@ -492,6 +497,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // もはや2025-06-01にしてcompareAsMonth()にしたら右側は2005-07-01になるか？
             // 実行されたSQLみてそうなっていることを確認。
             // わかりやすいかと言われると少しうーんって思うところではあります。
+            // [1on1でのふぉろー] jfluteの実務でのwithManualOrder()の話、現場での話
             cb.query().addOrderBy_FormalizedDatetime_Asc().withManualOrder(op -> {
                 op.when_FromTo(convertedDate, convertedDate, fop -> fop.compareAsMonth());
             });
@@ -509,6 +515,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // いや、でもそれは別にいいのか。重要なのはボーダーを超えた時に、TrueになってそれがTrueでい続けることか
         // 命名なやむー・・・こういう時ってどういう名前つけるのが主流なんだろう。
         boolean passedTargetMonthBorder = false;
+        // TODO shiny 1on1で自分で思い付いてもらいましたが、assertが動いた保証があると良い by jflute (2025/05/14)
 
         for (Member member : memberList) {
             assertNull(member.getBirthdate());
@@ -521,6 +528,9 @@ public class HandsOn03Test extends UnitContainerTestCase {
             }
         }
         assertTrue(passedTargetMonthBorder);
+        
+        // [1on1でのふぉろー] よもやま: 気合の入った HandyDate
+        // CountDownRace, FileToken などなど
     }
 
     // ページング検索などについてはまた今度やります・・
