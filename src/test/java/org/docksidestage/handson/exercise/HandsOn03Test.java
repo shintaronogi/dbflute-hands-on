@@ -322,7 +322,11 @@ public class HandsOn03Test extends UnitContainerTestCase {
      */
     public void test_07() {
         // ## Arrange
+        // [1on1でのふぉろー] 漠然読みのエッセンスのお話
+        // shiny said 漠然読みすることで、漠然読みしやすいコードを意識するようになった
         adjustPurchase_PurchaseDatetime_fromFormalizedDatetimeInWeek();
+        // [1on1でのふぉろー] EntityのImmutable/Mutable話
+        // 一応、DBFlute on Scala がある。言語によってImmutableに対する文化の違いがある。
         // ## Act
         ListResultBean<Purchase> purchases = purchaseBhv.selectList(cb -> {
             cb.setupSelect_Member().withMemberStatus();
@@ -397,7 +401,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDate convertedTo = LocalDate.parse(requestTo, formatter);
 
-        // TODO done shiny Limitが少々迷ったので、LastDayみたいな露骨な表現を入れてもいいかも？ by jflute (2025/05/14)
+        // done shiny Limitが少々迷ったので、LastDayみたいな露骨な表現を入れてもいいかも？ by jflute (2025/05/14)
         LocalDate birthdateLastDay = LocalDate.of(1974, 12, 31);
         adjustMember_Birthdate(1, birthdateLastDay);
 
@@ -439,7 +443,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // アサート
             LocalDate birthdate = member.getBirthdate();
             if (birthdate != null) {
-                // TODO done shiny birthDateAboveLimitがいるのでそっちを使いましょう by jflute (2025/05/14)
+                // done shiny birthDateAboveLimitがいるのでそっちを使いましょう by jflute (2025/05/14)
                 assertTrue(birthdate.isBefore(birthDateOneDayAfterLastDay));
                 if (birthdate.isEqual(birthdateLastDay)) {
                     existsMemberWithBirthdateLimit = true;
@@ -516,7 +520,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // いや、でもそれは別にいいのか。重要なのはボーダーを超えた時に、TrueになってそれがTrueでい続けることか
         // 命名なやむー・・・こういう時ってどういう名前つけるのが主流なんだろう。
         boolean passedTargetMonthBorder = false;
-        // TODO shiny 1on1で自分で思い付いてもらいましたが、assertが動いた保証があると良い by jflute (2025/05/14)
+        // done shiny 1on1で自分で思い付いてもらいましたが、assertが動いた保証があると良い by jflute (2025/05/14)
         boolean existsTargetMonth = false;
 
         for (Member member : memberList) {
@@ -536,6 +540,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // CountDownRace, FileToken などなど
     }
 
+    // TODO jflute DBFluteの内部コードを読みながら解説していきたい (2025/05/28)
     // ページング検索などについてはまた今度やります・・
     /**
      * 全ての会員をページング検索
