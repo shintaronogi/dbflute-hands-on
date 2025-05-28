@@ -3,6 +3,7 @@ package org.docksidestage.handson.exercise;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -10,8 +11,8 @@ import java.util.Set;
 import javax.annotation.Resource;
 
 import org.dbflute.cbean.result.ListResultBean;
+import org.dbflute.cbean.result.PagingResultBean;
 import org.dbflute.exception.NonSpecifiedColumnAccessException;
-import org.dbflute.helper.thread.CountDownRace;
 import org.docksidestage.handson.dbflute.exbhv.MemberBhv;
 import org.docksidestage.handson.dbflute.exbhv.MemberSecurityBhv;
 import org.docksidestage.handson.dbflute.exbhv.PurchaseBhv;
@@ -396,12 +397,12 @@ public class HandsOn03Test extends UnitContainerTestCase {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
         LocalDate convertedTo = LocalDate.parse(requestTo, formatter);
 
-        // TODO shiny Limitが少々迷ったので、LastDayみたいな露骨な表現を入れてもいいかも？ by jflute (2025/05/14)
-        LocalDate birthdateLimit = LocalDate.of(1974, 12, 31);
-        adjustMember_Birthdate(1, birthdateLimit);
+        // TODO done shiny Limitが少々迷ったので、LastDayみたいな露骨な表現を入れてもいいかも？ by jflute (2025/05/14)
+        LocalDate birthdateLastDay = LocalDate.of(1974, 12, 31);
+        adjustMember_Birthdate(1, birthdateLastDay);
 
-        LocalDate birthDateAboveLimit = LocalDate.of(1975, 1, 1);
-        adjustMember_Birthdate(3, birthDateAboveLimit);
+        LocalDate birthDateOneDayAfterLastDay = LocalDate.of(1975, 1, 1);
+        adjustMember_Birthdate(3, birthDateOneDayAfterLastDay);
 
         // ## Act
         ListResultBean<Member> memberList = memberBhv.selectList(cb -> {
@@ -438,9 +439,9 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // アサート
             LocalDate birthdate = member.getBirthdate();
             if (birthdate != null) {
-                // TODO shiny birthDateAboveLimitがいるのでそっちを使いましょう by jflute (2025/05/14)
-                assertTrue(birthdate.isBefore(LocalDate.of(1975, 1, 1)));
-                if (birthdate.isEqual(birthdateLimit)) {
+                // TODO done shiny birthDateAboveLimitがいるのでそっちを使いましょう by jflute (2025/05/14)
+                assertTrue(birthdate.isBefore(birthDateOneDayAfterLastDay));
+                if (birthdate.isEqual(birthdateLastDay)) {
                     existsMemberWithBirthdateLimit = true;
                 }
             }
@@ -516,6 +517,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // 命名なやむー・・・こういう時ってどういう名前つけるのが主流なんだろう。
         boolean passedTargetMonthBorder = false;
         // TODO shiny 1on1で自分で思い付いてもらいましたが、assertが動いた保証があると良い by jflute (2025/05/14)
+        boolean existsTargetMonth = false;
 
         for (Member member : memberList) {
             assertNull(member.getBirthdate());
@@ -523,15 +525,112 @@ public class HandsOn03Test extends UnitContainerTestCase {
             if (formalizedDatetime != null && formalizedDatetime.getYear() == targetMonth.getYear()
                     && formalizedDatetime.getMonth() == targetMonth.getMonth()) {
                 assertFalse(passedTargetMonthBorder);
+                existsTargetMonth = true;
             } else {
                 passedTargetMonthBorder = true;
             }
         }
+        assertTrue(existsTargetMonth);
         assertTrue(passedTargetMonthBorder);
-        
         // [1on1でのふぉろー] よもやま: 気合の入った HandyDate
         // CountDownRace, FileToken などなど
     }
 
     // ページング検索などについてはまた今度やります・・
+    /**
+     * 全ての会員をページング検索
+     * 会員ステータス名称も取得
+     * 会員IDの昇順で並べる
+     * ページサイズは 3、ページ番号は 1 で検索すること
+     * 会員ID、会員名称、会員ステータス名称をログに出力
+     * SQLのログでカウント検索時と実データ検索時の違いを確認
+     * 総レコード件数が会員テーブルの全件であることをアサート
+     * 総ページ数が期待通りのページ数(計算で導出)であることをアサート
+     * 検索結果のページサイズ、ページ番号が指定されたものであることをアサート
+     * 検索結果が指定されたページサイズ分のデータだけであることをアサート
+     * PageRangeを 3 にして PageNumberList を取得し、[1, 2, 3, 4]であることをアサート
+     * 前のページが存在しないことをアサート
+     * 次のページが存在することをアサート
+     */
+    public void test_paging() {
+        // ## Arrange
+        int targetPageSize = 3;
+        int targetPageNumber = 1;
+
+        // ## Act
+        PagingResultBean<Member> members = memberBhv.selectPage(cb -> {
+            cb.setupSelect_MemberStatus();
+            cb.specify().specifyMemberStatus().columnMemberStatusName();
+            cb.addOrderBy_PK_Asc();
+            cb.paging(targetPageSize, targetPageNumber);
+        });
+
+        // ページングのジレンマあるある
+        // SQL2回投げる問題 -> タイムアウトとか考慮するともっとややこしくなる？
+        // 排他制御どうするか問題
+        // つぶやき：そーいえばcount(*) over()使って実装することが最近あった
+        // だがこんな記事もみた：https://raahii.me/posts/count-over-query-is-slow/
+
+        // dbfluteのページングの工夫が素敵です。
+
+        // ## Assert
+        assertHasAnyElement(members);
+        members.forEach(member -> {
+            Integer memberId = member.getMemberId();
+            String memberName = member.getMemberName();
+            String memberStatusName = member.getMemberStatus().orElseThrow().getMemberStatusName();
+            log("memberId: {}, memberName: {}, memberStatusName: {}", memberId, memberName, memberStatusName);
+        });
+
+        int allRecordCount = members.getAllRecordCount();
+        assertEquals(allRecordCount, memberBhv.selectCount(cb -> {}));
+        int allPageCount = members.getAllPageCount();
+        assertEquals(allPageCount, (int) Math.ceil((double) allRecordCount / targetPageSize));
+        assertEquals(targetPageSize, members.getPageSize());
+        assertEquals(targetPageNumber, members.getCurrentPageNumber());
+        assertEquals(Arrays.asList(1, 2, 3, 4), members.pageRange(op -> op.rangeSize(3)).createPageNumberList());
+        // Previous/Current Page Numberしたら何が返って来るんだろうと思ったけど、IllegalArgumentExceptionだった
+        assertFalse(members.existsPreviousPage());
+        assertTrue(members.existsNextPage());
+    }
+
+    /**
+     *会員ステータスの表示順カラムで会員を並べてカーソル検索
+     * 会員ステータスの "表示順" カラムの昇順で並べる
+     * 会員ステータスのデータも取得
+     * その次には、会員の会員IDの降順で並べる
+     * 会員ステータスが取れていることをアサート
+     * 会員が会員ステータスごとに固まって並んでいることをアサート
+     * 検索したデータをまるごとメモリ上に持ってはいけない
+     * (要は、検索結果レコード件数と同サイズのリストや配列の作成はダメ)
+     */
+    public void test_cursor() {
+        // ## Arrange
+        // Lambdaだとこういうことめっちゃしにくいーコードも読みにくくなるー
+        //
+        // ちょっと別の話なんですが、Immutableなところで参照が変わらないObjectやArrayを使って中身をMutateし、変更検知にひっかからない実装っていうしたくなったってことが最近ありました。
+        // ハッキーだったので結果やめたんですけどw
+        String[] previousStatusCode = new String[1];
+        Set<String> memberStatusCodeSet = new HashSet<>();
+
+        // ## Act
+        memberBhv.selectCursor(cb -> {
+            cb.setupSelect_MemberStatus();
+            cb.query().queryMemberStatus().addOrderBy_DisplayOrder_Asc();
+            cb.query().addOrderBy_MemberId_Desc();
+        }, member -> {
+            assertTrue(member.getMemberStatus().isPresent());
+            String currentStatusCode = member.getMemberStatusCode();
+            String previous = previousStatusCode[0];
+            if (!previous.equals(currentStatusCode)) {
+                assertFalse(memberStatusCodeSet.contains(currentStatusCode));
+            }
+            memberStatusCodeSet.add(currentStatusCode);
+            previousStatusCode[0] = currentStatusCode;
+        });
+        // ## Assert
+        assertHasAnyElement(memberStatusCodeSet);
+    }
+
+    // InnerJoinAutoDetect...すごい機能だ...
 }
