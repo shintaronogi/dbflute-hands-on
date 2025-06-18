@@ -56,7 +56,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // ## Assert ##
         assertHasAnyElement(memberList);
         memberList.forEach(member -> {
-            // TODO done shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
+            // done shiny ここでは、カラム名もBIRTHDATEだし、変数名も単に birthdate でもいいかなと by jflute (2025/04/16)
             // 変数のスコープの広さ次第で変数名をどれだけ修飾するか決まる。
             // but ここではカラム名を省略するわけではなく、テーブル名 prefix を外すだけ
             // 名前は識別するためのもの、識別する人のことを想像して判断する
@@ -98,7 +98,7 @@ public class HandsOn03Test extends UnitContainerTestCase {
             // (カーディナリティのセカンドレベル、ERDだと黒丸、テーブルコメントにも書いてある)
             assertTrue(member.getMemberSecurityAsOne().isPresent());
 
-            // TODO done shiny [読み物課題] これ最重要 by jflute (2025/04/16)
+            // done shiny [読み物課題] これ最重要 by jflute (2025/04/16)
             // 会員から会員ステータスは、NotNullのFKカラムで参照しているので、探しにいけば必ず存在する
             // 会員から会員セキュリティは、FKの方向と探しにいく方向が逆なので同じ理論にはなりませんが、
             // ERDのリレーションシップ線に注目。会員退会情報と比べると一目瞭然、黒丸がついていないので必ず存在する1
@@ -191,7 +191,8 @@ public class HandsOn03Test extends UnitContainerTestCase {
         // ただ、現代のPCパワーだとほぼほぼ気にしなくてもいいくらいで、わりとアバウト。
         // LinkedHashMapに関しては、before/afterの参照を持っている。
         // 一方で、LinkedHashSetに関しては...あらりゃ？spliterator()だけORDEREDってあるけど？
-        // TODO jflute LinkedHashSetの実装どうなってるの？ (2025/04/30)
+        // done jflute LinkedHashSetの実装どうなってるの？ (2025/04/30)
+        // → 一緒に実装を読んでみて仕組みわかった
         Set<String> memberStatusCodeSet = new HashSet<>();
         String previousStatusCode = "";
         for (Member member : memberList) {
